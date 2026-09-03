@@ -77,18 +77,19 @@
     // the app's own actions join the platform's without replacing how the selection itself works.
     override func buildMenu(with builder: any UIMenuBuilder) {
       super.buildMenu(with: builder)
-      guard builder.system == .context, !selectionActions.isEmpty,
-        let selectedRange = model.selectedRange, !selectedRange.isCollapsed
-      else {
+      guard builder.system == .context, !selectionActions.isEmpty, model.selectedRange?.isCollapsed == false else {
         return
       }
-      let selectedText = Formatter(model.attributedText(in: selectedRange)).plainText()
+      // The text is only formatted once an action is chosen, and from the selection as it is then.
       let actions = selectionActions.map { action in
         UIAction(
           title: action.title,
           image: action.systemImage.map { UIImage(systemName: $0) } ?? nil
-        ) { _ in
-          action.handler(selectedText)
+        ) { [weak self] _ in
+          guard let self, let selectedRange = self.model.selectedRange, !selectedRange.isCollapsed else {
+            return
+          }
+          action.handler(Formatter(self.model.attributedText(in: selectedRange)).plainText())
         }
       }
       builder.insertChild(
