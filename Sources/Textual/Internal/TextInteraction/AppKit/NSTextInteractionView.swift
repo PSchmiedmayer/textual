@@ -227,7 +227,7 @@
         for action in selectionActions {
           let item = NSMenuItem(title: action.title, action: #selector(performSelectionAction(_:)), keyEquivalent: "")
           item.target = self
-          item.representedObject = action.id
+          item.representedObject = action
           if let systemImage = action.systemImage {
             item.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: nil)
           }
@@ -291,19 +291,12 @@
     }
 
     @objc private func performSelectionAction(_ sender: NSMenuItem) {
-
-      guard let selectedRange = model.selectedRange,
-
-        let action = selectionActions.first(where: { $0.id == sender.representedObject as? String })
-
+      guard let selectedRange = model.selectedRange, !selectedRange.isCollapsed,
+        let action = sender.representedObject as? TextSelectionAction
       else {
-
         return
-
       }
-
       action.handler(Formatter(model.attributedText(in: selectedRange)).plainText())
-
     }
 
 
