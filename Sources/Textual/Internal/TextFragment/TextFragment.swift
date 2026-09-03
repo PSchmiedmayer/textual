@@ -30,14 +30,16 @@ struct TextFragment<Content: AttributedStringProtocol>: View {
   @MainActor
   final class BuilderCache {
     private var content: Content?
+    private var environment: TextEnvironmentValues?
     private var builder: TextBuilder?
 
     func builder(for content: Content, environment: TextEnvironmentValues) -> TextBuilder {
-      if let builder, content == self.content {
+      if let builder, content == self.content, environment == self.environment {
         return builder
       }
       let builder = TextBuilder(content, environment: environment)
       self.content = content
+      self.environment = environment
       self.builder = builder
       return builder
     }
