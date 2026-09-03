@@ -20,6 +20,8 @@
     var model: TextSelectionModel
     var exclusionRects: [CGRect]
     var openURL: OpenURLAction
+    /// Actions the app adds to the selection menu, after the platform's own.
+    var selectionActions: [TextSelectionAction]
 
     weak var inputDelegate: (any UITextInputDelegate)?
 
@@ -31,8 +33,10 @@
     init(
       model: TextSelectionModel,
       exclusionRects: [CGRect],
-      openURL: OpenURLAction
+      openURL: OpenURLAction,
+      selectionActions: [TextSelectionAction] = []
     ) {
+      self.selectionActions = selectionActions
       self.model = model
       self.exclusionRects = exclusionRects
       self.openURL = openURL
@@ -58,12 +62,39 @@
     }
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+      let hasSelection = !(model.selectedRange?.isCollapsed ?? true)
       switch action {
       case #selector(copy(_:)), #selector(share(_:)):
-        return !(model.selectedRange?.isCollapsed ?? true)
+        return hasSelection
       default:
-        return false
+        // Look up, translate, search and the rest are the platform's to offer for selected text; refusing
+        // every unknown selector was what kept them off the menu.
+        return hasSelection && super.canPerformAction(action, withSender: sender)
       }
+    }
+
+    // The edit menu for a text interaction is assembled through the context menu system, so this is where
+    // the app's own actions join the platform's without replacing how the selection itself works.
+    override func buildMenu(with builder: any UIMenuBuilder) {
+      super.buildMenu(with: builder)
+      guard builder.system == .context, !selectionActions.isEmpty,
+        let selectedRange = model.selectedRange, !selectedRange.isCollapsed
+      else {
+        return
+      }
+      let selectedText = Formatter(model.attributedText(in: selectedRange)).plainText()
+      let actions = selectionActions.map { action in
+        UIAction(
+          title: action.title,
+          image: action.systemImage.map { UIImage(systemName: $0) } ?? nil
+        ) { _ in
+          action.handler(selectedText)
+        }
+      }
+      builder.insertChild(
+        UIMenu(options: .displayInline, children: actions),
+        atEndOfMenu: .standardEdit
+      )
     }
 
     override func copy(_ sender: Any?) {

@@ -14,6 +14,8 @@
     var model: TextSelectionModel
     var exclusionRects: [CGRect]
     var openURL: OpenURLAction
+    /// Actions the app adds to the selection menu, after the platform's own.
+    var selectionActions: [TextSelectionAction]
 
     override var acceptsFirstResponder: Bool { true }
     override var isFlipped: Bool { true }
@@ -25,8 +27,10 @@
     init(
       model: TextSelectionModel,
       exclusionRects: [CGRect],
-      openURL: OpenURLAction
+      openURL: OpenURLAction,
+      selectionActions: [TextSelectionAction] = []
     ) {
+      self.selectionActions = selectionActions
       self.model = model
       self.exclusionRects = exclusionRects
       self.openURL = openURL
@@ -218,6 +222,18 @@
           keyEquivalent: ""
         )
       )
+      if !selectionActions.isEmpty {
+        contextMenu.addItem(.separator())
+        for action in selectionActions {
+          let item = NSMenuItem(title: action.title, action: #selector(performSelectionAction(_:)), keyEquivalent: "")
+          item.target = self
+          item.representedObject = action.id
+          if let systemImage = action.systemImage {
+            item.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: nil)
+          }
+          contextMenu.addItem(item)
+        }
+      }
 
       return contextMenu
     }
@@ -273,6 +289,23 @@
 
       sharingPicker.show(relativeTo: rect, of: self, preferredEdge: .maxY)
     }
+
+    @objc private func performSelectionAction(_ sender: NSMenuItem) {
+
+      guard let selectedRange = model.selectedRange,
+
+        let action = selectionActions.first(where: { $0.id == sender.representedObject as? String })
+
+      else {
+
+        return
+
+      }
+
+      action.handler(Formatter(model.attributedText(in: selectedRange)).plainText())
+
+    }
+
 
     @objc private func copy(_ sender: Any?) {
       guard let selectedRange = model.selectedRange else {
