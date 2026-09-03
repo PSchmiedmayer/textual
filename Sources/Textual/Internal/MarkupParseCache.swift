@@ -5,11 +5,13 @@ import Foundation
 @MainActor
 final class MarkupParseCache {
   private var markup: String?
+  private var parserKey: AnyHashable?
   private var attributedString = AttributedString()
 
   func attributedString(for markup: String, parser: any MarkupParser) -> AttributedString {
-    if markup != self.markup {
+    if markup != self.markup || parser.cacheKey != parserKey {
       self.markup = markup
+      self.parserKey = parser.cacheKey
       self.attributedString = (try? parser.attributedString(for: markup)) ?? .init()
     }
     return attributedString
