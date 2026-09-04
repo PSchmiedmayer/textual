@@ -90,6 +90,7 @@
             return
           }
           action.handler(Formatter(self.model.attributedText(in: selectedRange)).plainText())
+          self.model.selectedRange = nil
         }
       }
       builder.insertChild(
@@ -114,6 +115,7 @@
           ]
         ]
       )
+      model.selectedRange = nil
     }
 
     private func setUp() {

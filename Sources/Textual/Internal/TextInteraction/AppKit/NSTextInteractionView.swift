@@ -297,6 +297,7 @@
         return
       }
       action.handler(Formatter(model.attributedText(in: selectedRange)).plainText())
+      resetSelection()
     }
 
 
