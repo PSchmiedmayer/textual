@@ -23,6 +23,7 @@
 
     private var dragStart: TextPosition?
     private var selectionAnchor: TextPosition?
+    private var outsideClickMonitor: Any?
 
     init(
       model: TextSelectionModel,
@@ -273,6 +274,40 @@
       selectionAnchor = nil
     }
 
+    /// A selection lives as long as its view is first responder, as it does in a text view.
+    override func resignFirstResponder() -> Bool {
+      let resigned = super.resignFirstResponder()
+      if resigned {
+        resetSelection()
+      }
+      return resigned
+    }
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      if let outsideClickMonitor {
+        NSEvent.removeMonitor(outsideClickMonitor)
+        self.outsideClickMonitor = nil
+      }
+      guard window != nil else {
+        return
+      }
+      outsideClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+        self?.dismissSelection(forClickIn: event)
+        return event
+      }
+    }
+
+    /// Ends the selection for a click anywhere in the window but on this view; clicks on the view are its own business.
+    func dismissSelection(forClickIn event: NSEvent) {
+      guard model.selectedRange != nil, event.window === window,
+        !bounds.contains(convert(event.locationInWindow, from: nil))
+      else {
+        return
+      }
+      resetSelection()
+    }
+
     @objc private func share(_ sender: Any?) {
       guard let selectedRange = model.selectedRange else {
         return
@@ -297,7 +332,6 @@
         return
       }
       action.handler(Formatter(model.attributedText(in: selectedRange)).plainText())
-      resetSelection()
     }
 
 

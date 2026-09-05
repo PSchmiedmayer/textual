@@ -29,6 +29,7 @@
 
     private(set) lazy var _tokenizer = UITextInputStringTokenizer(textInput: self)
     private let selectionInteraction: UITextInteraction
+    private(set) var outsideTapRecognizer: UITapGestureRecognizer?
 
     init(
       model: TextSelectionModel,
@@ -90,7 +91,6 @@
             return
           }
           action.handler(Formatter(self.model.attributedText(in: selectedRange)).plainText())
-          self.model.selectedRange = nil
         }
       }
       builder.insertChild(
@@ -115,7 +115,57 @@
           ]
         ]
       )
+    }
+
+    /// A selection lives as long as its view is first responder, as it does in a text view: focusing a text field,
+    /// presenting a sheet or leaving the screen ends it.
+    override func resignFirstResponder() -> Bool {
+      let resigned = super.resignFirstResponder()
+      if resigned {
+        model.selectedRange = nil
+      }
+      return resigned
+    }
+
+    override func didMoveToWindow() {
+      super.didMoveToWindow()
+      updateOutsideTapRecognizer()
+    }
+
+    /// Ends the selection for a tap anywhere in the window but on this view; taps on the view are its own business.
+    func dismissSelection(forTapAt point: CGPoint, in window: UIWindow) {
+      guard model.selectedRange != nil, !bounds.contains(convert(point, from: window)) else {
+        return
+      }
       model.selectedRange = nil
+    }
+
+    // The recognizer sits on the window only while there is a selection, and lets every other touch through.
+    private func updateOutsideTapRecognizer() {
+      let recognizer = outsideTapRecognizer ?? makeOutsideTapRecognizer()
+      let wantsRecognizer = model.selectedRange?.isCollapsed == false && window != nil
+      if wantsRecognizer, recognizer.view !== window {
+        recognizer.view?.removeGestureRecognizer(recognizer)
+        window?.addGestureRecognizer(recognizer)
+      } else if !wantsRecognizer, let view = recognizer.view {
+        view.removeGestureRecognizer(recognizer)
+      }
+    }
+
+    private func makeOutsideTapRecognizer() -> UITapGestureRecognizer {
+      let recognizer = UITapGestureRecognizer(target: self, action: #selector(handleOutsideTap(_:)))
+      recognizer.cancelsTouchesInView = false
+      recognizer.delaysTouchesEnded = false
+      recognizer.delegate = self
+      outsideTapRecognizer = recognizer
+      return recognizer
+    }
+
+    @objc private func handleOutsideTap(_ gesture: UITapGestureRecognizer) {
+      guard let window else {
+        return
+      }
+      dismissSelection(forTapAt: gesture.location(in: window), in: window)
     }
 
     private func setUp() {
@@ -126,6 +176,7 @@
       model.selectionDidChange = { [weak self] in
         guard let self else { return }
         self.inputDelegate?.selectionDidChange(self)
+        self.updateOutsideTapRecognizer()
       }
 
       let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
@@ -197,5 +248,14 @@
 
   extension Logger.Textual.Category {
     fileprivate static let textInteraction = Self(rawValue: "textInteraction")
+  }
+
+  extension UITextInteractionView: UIGestureRecognizerDelegate {
+    func gestureRecognizer(
+      _ gestureRecognizer: UIGestureRecognizer,
+      shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+      gestureRecognizer === outsideTapRecognizer
+    }
   }
 #endif
